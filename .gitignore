@@ -11,6 +11,8 @@ env/
 # Database
 chroma_db/
 temp/
+test_db/
+test_db_2/
 
 # IDEs
 .vscode/
