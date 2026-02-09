@@ -9,6 +9,19 @@ from src.rag_chain import ask_question
 from src.analysis import analyze_tech_stack
 from src.utils import delete_directory
 
+# Cache expensive operations
+@st.cache_data(show_spinner=False)
+def cached_clone_repository(url):
+    return clone_repository(url)
+
+@st.cache_data(show_spinner=False)
+def cached_analyze_tech_stack(path):
+    return analyze_tech_stack(path)
+
+@st.cache_data(show_spinner=False)
+def cached_get_repo_stats(path):
+    return get_repo_stats(path)
+
 # Page Config
 st.set_page_config(
     page_title="CodeReader AI",
@@ -106,13 +119,13 @@ if process_btn and repo_url and api_key:
             try:
                 # 1. Clone
                 status.write("📥 Cloning repository...")
-                repo_path = clone_repository(repo_url)
+                repo_path = cached_clone_repository(repo_url)
                 st.session_state.repo_path = repo_path # Save for later use
                 
                 # 2. Analyze
                 status.write("🔍 Analyzing tech stack...")
-                st.session_state.repo_stats = get_repo_stats(repo_path)
-                st.session_state.tech_stack = analyze_tech_stack(repo_path)
+                st.session_state.repo_stats = cached_get_repo_stats(repo_path)
+                st.session_state.tech_stack = cached_analyze_tech_stack(repo_path)
                 
                 # 3. Vectorize
                 status.write("🧠 Building knowledge base (this may take a while)...")
@@ -136,7 +149,7 @@ if process_btn and repo_url and api_key:
 # --- Chat Interface ---
 
 if st.session_state.repo_processed:
-    tab1, tab2 = st.tabs(["💬 Chat", "🏗️ Architecture Diagram"])
+    tab1, tab2, tab3 = st.tabs(["💬 Chat", "🏗️ Architecture Diagram", "📂 File Explorer"])
     
     with tab1:
         # Display Chat History
@@ -166,46 +179,46 @@ if st.session_state.repo_processed:
         if st.button("Generate Diagram"):
             with st.spinner("Analyzing architecture..."):
                 try:
-                    from src.diagram import generate_architecture_diagram
-                    from src.ingest import get_repo_files
-                    
-                    # We might need to re-scan files or store them in session state
-                    # For now re-scanning is cheap enough for local folders
-                    # But better leverage what we have. 
-                    # We don't have the path in session state easily unless we store it.
-                    # Let's assume user didn't change the URL. 
-                    # Ideally we should store repo_path in session_state, but it's a temp path that might be tricky if we want to support persistence across sessions.
-                    # For this MVP, let's just use the URL to re-derive path or store it.
-                    
-                    # Hack: Re-clone? No, that's bad.
-                    # Let's check if we can store repo_path in session_state safely.
-                    # Warning: Path objects might not pickle well if we use complex session state, but Streamlit handles it fine usually.
-                    
-                    # Wait, we already called clone_repository and got repo_path. 
-                    # But we didn't save it to session_state in the main logic block.
-                    # Let's update the main logic block first to save repo_path.
-                    pass 
+                    # Check if we have the path
+                    if "repo_path" in st.session_state and st.session_state.repo_path:
+                        from src.diagram import generate_architecture_diagram
+                        from src.ingest import get_repo_files
+                        
+                        files = get_repo_files(st.session_state.repo_path)
+                        diagram_code = generate_architecture_diagram(files, st.session_state.tech_stack, api_key)
+                        st.session_state.diagram_code = diagram_code
+                    else:
+                        st.error("Repository path not found. Please re-process the repository.")
+
                 except Exception as e:
                    st.error(f"Error: {e}")
-
-        # Placeholder for where logic should be if we had repo_path
-        # Since I can't edit the middle of the file easily without re-writing the whole block,
-        # I will use a trick: I will update the main block to save `repo_path` to session_state
-        # and then implement the diagram generation here.
-        
-        if "repo_path" in st.session_state and st.session_state.repo_path:
-             if st.button("Generate Architecture Diagram", key="gen_diag"):
-                with st.spinner("Generating Diagram..."):
-                    from src.diagram import generate_architecture_diagram
-                    from src.ingest import get_repo_files
-                    
-                    files = get_repo_files(st.session_state.repo_path)
-                    diagram_code = generate_architecture_diagram(files, st.session_state.tech_stack, api_key)
-                    
-                    st.session_state.diagram_code = diagram_code
         
         if "diagram_code" in st.session_state:
             st.markdown(f"```mermaid\n{st.session_state.diagram_code}\n```")
+
+    with tab3:
+        st.subheader("📂 Project Structure")
+        
+        if "repo_path" in st.session_state and st.session_state.repo_path:
+            from src.tree_utils import get_dir_tree
+            
+            # Recursive function to display tree
+            def display_tree(node):
+                if "children" in node: # It's a directory
+                    with st.expander(f"📁 {node['name']}", expanded=False):
+                        for child in node['children']:
+                            display_tree(child)
+                else: # It's a file
+                    st.caption(f"📄 {node['name']}")
+
+            try:
+                tree = get_dir_tree(st.session_state.repo_path)
+                display_tree(tree)
+            except Exception as e:
+                st.error(f"Error generating tree: {e}")
+        else:
+            st.info("Process a repository to view the file structure.")
+            
 
 else:
     # Empty State
