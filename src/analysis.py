@@ -1,5 +1,8 @@
 import json
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 def analyze_tech_stack(repo_path: Path) -> dict:
     """
@@ -30,8 +33,10 @@ def analyze_tech_stack(repo_path: Path) -> dict:
                 
                 # List top dependencies
                 tech_stack["dependencies"].extend(list(deps.keys())[:10])
-        except Exception:
-            pass
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse package.json: {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error reading package.json: {e}")
 
     # Check for requirements.txt (Python)
     req_txt = repo_path / "requirements.txt"
@@ -49,8 +54,8 @@ def analyze_tech_stack(repo_path: Path) -> dict:
                 # Add first few lines as deps
                 lines = [line.strip() for line in content.splitlines() if line.strip() and not line.startswith('#')]
                 tech_stack["dependencies"].extend(lines[:10])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Error reading requirements.txt: {e}")
             
     # Check for pom.xml (Java) - Simple check
     if (repo_path / "pom.xml").exists():

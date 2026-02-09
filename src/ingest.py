@@ -33,13 +33,25 @@ def clone_repository(repo_url: str) -> Path:
     Clones a GitHub repository to a unique temporary directory.
     """
     try:
+        # Basic validation for URL
+        if not repo_url.startswith(("http://", "https://", "git@")):
+            raise ValueError("Invalid Repository URL format. Must start with http://, https://, or git@")
+
         target_dir = create_unique_temp_dir()
         logger.info(f"Cloning {repo_url} into {target_dir}...")
+        
+        # Clone with shallow depth for speed
         git.Repo.clone_from(repo_url, target_dir, depth=1)
+        
         logger.info("Cloning completed successfully.")
         return target_dir
+    except git.exc.GitCommandError as e:
+        logger.error(f"Git clone error: {e}")
+        if 'target_dir' in locals():
+            delete_directory(target_dir)
+        raise RuntimeError(f"Failed to clone repository. Please check if the URL is correct and public. Details: {e.stderr.strip()}")
     except Exception as e:
-        logger.error(f"Failed to clone repository: {e}")
+        logger.error(f"Unexpected error during cloning: {e}")
         if 'target_dir' in locals():
             delete_directory(target_dir)
         raise e
@@ -72,12 +84,24 @@ def get_repo_files(repo_path: Path) -> list[Path]:
     Recursively gets all valid files in the repository.
     """
     files = []
+    if not repo_path.exists():
+        logger.error(f"Repository path does not exist: {repo_path}")
+        return []
+        
     try:
         for item in repo_path.rglob("*"):
-            if item.is_file() and is_valid_file(item):
-                files.append(item)
+            try:
+                if item.is_file() and is_valid_file(item):
+                    files.append(item)
+            except (PermissionError, OSError) as e:
+                logger.warning(f"Skipping file/dir due to permission error: {item} - {e}")
+                continue
     except Exception as e:
         logger.error(f"Error traversing directory {repo_path}: {e}")
+    
+    if not files:
+        logger.warning(f"No valid files found in {repo_path} matching supported extensions.")
+        
     return files
 
 def get_repo_stats(repo_path: Path) -> dict:

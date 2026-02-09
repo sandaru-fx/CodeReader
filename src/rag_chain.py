@@ -77,17 +77,31 @@ def get_rag_chain(api_key: str):
         return rag_chain
         
     except Exception as e:
-        logger.error(f"Failed to initialize RAG chain: {e}")
-        raise e
+        error_msg = str(e).lower()
+        if "api_key_invalid" in error_msg or "invalid api key" in error_msg:
+            logger.error("Invalid Google API Key provided during RAG initialization.")
+            raise ValueError("Invalid Google API Key. Please check your credentials.")
+        elif "quota" in error_msg or "429" in error_msg:
+            logger.error("Google API Quota exceeded.")
+            raise RuntimeError("API Quota exceeded. Please try again in a few minutes.")
+        else:
+            logger.error(f"Failed to initialize RAG chain: {e}")
+            raise e
 
 def ask_question(question: str, api_key: str) -> str:
     """
     Invokes the RAG chain with a user question.
     """
     try:
+        if not api_key:
+            return "⚠️ Please provide a Google API Key to start chatting."
         chain = get_rag_chain(api_key)
         response = chain.invoke(question)
         return response
+    except ValueError as ve:
+        return f"🔑 API Key Error: {ve}"
+    except RuntimeError as re:
+        return f"⏳ API Limit Reached: {re}"
     except Exception as e:
         logger.error(f"Error asking question: {e}")
-        return f"Sorry, I encountered an error: {str(e)}"
+        return f"Sorry, I encountered an unexpected error: {str(e)}"

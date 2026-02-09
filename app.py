@@ -150,18 +150,27 @@ if process_btn and repo_url and api_key:
                 # Need to get list of files first
                 from src.ingest import get_repo_files
                 files = get_repo_files(repo_path)
-                process_repo_to_vector_store(files, api_key)
                 
-                # 4. Cleanup
-                # status.write("🧹 Cleaning up temp files...")
-                # delete_directory(repo_path)
-                # Note: We might want to keep it if we implement specific file lookup later
+                if not files:
+                    st.error("📂 No supported code files found in this repository. Please try another repo.")
+                    status.update(label="❌ Ingestion Failed", state="error")
+                else:
+                    success = process_repo_to_vector_store(files, api_key)
+                    if success:
+                        st.session_state.repo_processed = True
+                        status.update(label="✅ Repository Processed Successfully!", state="complete", expanded=False)
+                    else:
+                        st.error("🧠 Failed to build knowledge base. No chunks could be created.")
+                        status.update(label="❌ Ingestion Failed", state="error")
                 
-                st.session_state.repo_processed = True
-                status.update(label="✅ Repository Processed Successfully!", state="complete", expanded=False)
-                
+            except ValueError as ve:
+                st.error(f"🔑 API Key Error: {ve}")
+                status.update(label="❌ Processing Failed", state="error")
+            except RuntimeError as re:
+                st.error(f"⏳ System Error: {re}")
+                status.update(label="❌ Processing Failed", state="error")
             except Exception as e:
-                st.error(f"An error occurred: {e}")
+                st.error(f"⚠️ An unexpected error occurred: {e}")
                 status.update(label="❌ Processing Failed", state="error")
 
 # --- Chat Interface ---

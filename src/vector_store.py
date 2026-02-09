@@ -132,19 +132,39 @@ def create_vector_store(chunks: List[Document], api_key: str) -> Chroma:
         return vector_store
         
     except Exception as e:
-        logger.error(f"Failed to create vector store: {e}")
-        raise e
+        error_msg = str(e).lower()
+        if "api_key_invalid" in error_msg or "invalid api key" in error_msg:
+            logger.error("Invalid Google API Key provided.")
+            raise ValueError("Invalid Google API Key. Please check your credentials.")
+        elif "quota" in error_msg or "429" in error_msg:
+            logger.error("Google API Quota exceeded.")
+            raise RuntimeError("API Quota exceeded. Please try again in a few minutes.")
+        else:
+            logger.error(f"Failed to create vector store: {e}")
+            raise e
 
 def process_repo_to_vector_store(files: List[Path], api_key: str):
     """
     Orchestrates the flow: Load -> Chunk -> Store
     """
+    if not files:
+        logger.warning("No files found to process.")
+        return False
+
     logger.info("Loading documents...")
     documents = load_documents_from_files(files)
     
+    if not documents:
+        logger.warning("No readable documents found.")
+        return False
+
     logger.info(f"Loaded {len(documents)} documents. Chunking...")
     chunks = chunk_documents(documents)
     
+    if not chunks:
+        logger.warning("No chunks created. Documents might be empty or too small.")
+        return False
+
     logger.info(f"Created {len(chunks)} chunks. Creating vector store...")
     create_vector_store(chunks, api_key)
     
