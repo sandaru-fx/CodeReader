@@ -43,7 +43,7 @@ def get_rag_chain(api_key: str):
         
         # Initialize Embeddings
         embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/embedding-001",
+            model="models/text-embedding-004",
             google_api_key=api_key
         )
         

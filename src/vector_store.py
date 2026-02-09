@@ -116,7 +116,7 @@ def create_vector_store(chunks: List[Document], api_key: str) -> Chroma:
             
         # Initialize Embeddings
         embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/embedding-001",
+            model="models/text-embedding-004",
             google_api_key=api_key
         )
         
