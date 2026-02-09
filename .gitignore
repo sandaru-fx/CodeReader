@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# Environment Variables
+.env
+
+# Database
+chroma_db/
+temp/
+
+# IDEs
+.vscode/
+.idea/
+
+# Mac
+.DS_Store
