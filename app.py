@@ -8,6 +8,9 @@ from src.vector_store import process_repo_to_vector_store
 from src.rag_chain import ask_question
 from src.analysis import analyze_tech_stack
 from src.utils import delete_directory
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Cache expensive operations
 @st.cache_data(show_spinner=False)
@@ -85,7 +88,22 @@ st.caption("Chat with any GitHub Repository using Gemini Pro")
 with st.sidebar:
     st.header("⚙️ Configuration")
     
-    api_key = st.text_input("Google API Key", type="password", help="Get yours at makersuite.google.com")
+    env_api_key = os.getenv("GOOGLE_API_KEY")
+    api_key_input = st.text_input(
+        "Google API Key", 
+        type="password", 
+        help="Get yours at makersuite.google.com. If left blank, we'll try to use the server-configured key.",
+        placeholder="Enter API Key or leave blank for default"
+    )
+    
+    # Logic to decide which API key to use
+    api_key = api_key_input if api_key_input else env_api_key
+    
+    if not api_key:
+        st.warning("⚠️ No API Key found. Please enter one or configure a .env file.")
+    elif not api_key_input and env_api_key:
+        st.success("🔒 Using shared system API Key")
+
     repo_url = st.text_input("GitHub Repo URL")
     
     process_btn = st.button("🚀 Ingest Repository", use_container_width=True)
